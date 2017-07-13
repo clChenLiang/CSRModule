@@ -2809,6 +2809,7 @@ extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
             CsrMeshEnableBackoff(CSR_MESH_BACKOFF_RELAY, b_enable);
 
             /* Enable bridge backoff if GATT Server bearer is enabled */
+            // 如果GATT服务承担者允许，则可以让桥接设备回滚
             b_enable = (g_lightapp_data.bearer_data.bearerEnabled & \
                                      BLE_GATT_SERVER_BEARER_MASK)? TRUE : FALSE;
 
@@ -2867,6 +2868,7 @@ extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
            /* Defer OTA Reset for half a second to ensure that,
             * acknowledgements are sent before reset.
             */
+            // 延时半秒，在reset 前发送出去
            ota_rst_tid = TimerCreate(OTA_RESET_DEFER_DURATION, TRUE,
                                      issueOTAReset);
 
@@ -2909,7 +2911,7 @@ extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
             if (g_lightapp_data.attn_data.attract_attn)
             {
                 /* Create attention duration timer if required */
-                if (g_lightapp_data.attn_data.attn_duration != 0xFFFF)
+                if (g_lightapp_data.attn_da ta.attn_duration != 0xFFFF)
                 {
                     dur_us = (uint32)g_lightapp_data.attn_data.attn_duration * \
                                      MILLISECOND;
@@ -2948,19 +2950,23 @@ extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
 
 #ifdef ENABLE_DATA_MODEL
         /* Data stream model messages */
+        // 数据流模型
         case CSR_MESH_DATA_STREAM_SEND_CFM:
         {
             handleCSRmeshDataStreamSendCfm((CSR_MESH_STREAM_EVENT_T *)data);
+            // cfm -- 混频器？  数据开始发送？
         }
         break;
 
         case CSR_MESH_DATA_STREAM_DATA_IND:
         {
+            // 数据发送结束
             handleCSRmeshDataStreamDataInd((CSR_MESH_STREAM_EVENT_T *)data);
         }
         break;
 
         /* Stream flush indication */
+        // 数据流清除指示
         case CSR_MESH_DATA_STREAM_FLUSH_IND:
         {
             handleCSRmeshDataStreamFlushInd((CSR_MESH_STREAM_EVENT_T *)data);
