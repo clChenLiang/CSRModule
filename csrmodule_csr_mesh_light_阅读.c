@@ -2318,6 +2318,7 @@ void AppInit(sleep_state last_sleep_state)
  *  DESCRIPTION
  *      This user application function is called whenever a system event, such
  *      as a battery low notification, is received by the system.
+        // 当任何一个系统事件被系统接受到，这个应用程序都会被调用 。
  *
  *  RETURNS
  *      Nothing.
@@ -2347,6 +2348,7 @@ void AppProcessSystemEvent(sys_event_id id, void *data)
  *  DESCRIPTION
  *      This user application function is called whenever a LM-specific event
  *      is received by the system.
+        // 当系统接受到 LM-specific 事件时，该函数被调用 。即层管理事件
  *
  * PARAMETERS
  *      event_code [in]   LM event ID
@@ -2355,6 +2357,7 @@ void AppProcessSystemEvent(sys_event_id id, void *data)
  * RETURNS
  *      TRUE if the application has finished with the event data;
  *           the control layer will free the buffer.
+        // 当程序完成事件数据，返回真；同时层控制会释放buffer。
  *----------------------------------------------------------------------------*/
 extern bool AppProcessLmEvent(lm_event_code event_code,
                               LM_EVENT_T *p_event_data)
@@ -2365,6 +2368,7 @@ extern bool AppProcessLmEvent(lm_event_code event_code,
 
         case GATT_ADD_DB_CFM:
             /* Attribute database registration confirmation */
+            /* 属性数据库注册确认 */
             handleSignalGattAddDBCfm((GATT_ADD_DB_CFM_T*)p_event_data);
         break;
 
@@ -2372,6 +2376,7 @@ extern bool AppProcessLmEvent(lm_event_code event_code,
             /* Confirmation for the completion of GattCancelConnectReq()
              * procedure
              */
+             // 确定 GattCancelConnectReq() 程序执行完成
             handleSignalGattCancelConnectCfm();
         break;
 
@@ -2406,6 +2411,9 @@ extern bool AppProcessLmEvent(lm_event_code event_code,
          * spec Vol 3 Part C, Section 9.3.9 and HID over GATT profile spec
          * section 5.1.2.
          */
+         // lm 交换？
+         // 当应答从设备允许加密后发送的 LsConnectionParamUpdataeReq() 信号后接收
+         // 如果请求失败，设备重新发送请求。
         case LS_CONNECTION_PARAM_UPDATE_CFM:
             handleSignalLsConnParamUpdateCfm(
                 (LS_CONNECTION_PARAM_UPDATE_CFM_T*) p_event_data);
@@ -2490,6 +2498,7 @@ extern bool AppProcessLmEvent(lm_event_code event_code,
  *  DESCRIPTION
  *      This user application function is called whenever a CSRmesh event
  *      is received by the system.
+        // 这里应该是主角，用来处理系统接受到 CSRmesh 事件
  *
  * PARAMETERS
  *      event_code csr_mesh_event_t
@@ -2500,6 +2509,7 @@ extern bool AppProcessLmEvent(lm_event_code event_code,
  * RETURNS
  *      TRUE if the app has finished with the event data; the control layer
  *      will free the buffer.
+        // 当程序处理完事件数据，返回为真。同时控制层将释放 buffer 
  *----------------------------------------------------------------------------*/
 extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
                                    uint16 length, void **state_data)
@@ -2579,6 +2589,7 @@ extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
 #endif /* ENABLE_DATA_MODEL */
 
             /* Reset Light State */
+            // 重置灯泡的颜色、亮度。可以从这里进行修改？
             g_lightapp_data.light_state.red   = 0xFF;
             g_lightapp_data.light_state.green = 0xFF;
             g_lightapp_data.light_state.blue  = 0xFF;
@@ -2594,6 +2605,7 @@ extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
         case CSR_MESH_CONFIG_DEVICE_IDENTIFIER:
         {
             DEBUG_STR("Device ID received:");
+            // 设备接受到的分配给自己的 ID ，data 的哪个才是 ID 
             DEBUG_U8(data[0]);
             DEBUG_U8(data[1]);
             DEBUG_STR("\r\n");
@@ -2614,7 +2626,7 @@ extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
             if (state_data != NULL)
             {
                 *state_data = (void *)&device_appearance;
-            }
+            } 
         }
         break;
 
@@ -2627,6 +2639,7 @@ extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
         case CSR_MESH_LIGHT_SET_LEVEL:
         {
             /* Update State of RGB in application */
+            // 更新程序中 RGB 的状态
             g_lightapp_data.light_state.level = data[0];
             g_lightapp_data.light_state.power = POWER_STATE_ON;
             g_lightapp_data.power.power_state = POWER_STATE_ON;
@@ -2639,6 +2652,7 @@ extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
                                   g_lightapp_data.light_state.level);
 
             /* Send Light State Information to Model */
+            // 发送灯泡信息给模型？？？？ q_cl: 
             if (state_data != NULL)
             {
                 *state_data = (void *)&g_lightapp_data.light_state;
@@ -2737,12 +2751,13 @@ extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
             else
             {
                 togglePowerState();
+                // toggle 切换；切换灯泡状态。而非只是更改成指定的状态
             }
 
             DEBUG_STR("Set Power: ");
             DEBUG_U8(g_lightapp_data.power.power_state);
             DEBUG_STR("\r\n");
-
+            // 应用中的开关被限制或者灯泡处于关闭状态，不能更改灯光的亮度？
             if (g_lightapp_data.power.power_state == POWER_STATE_OFF ||
                 g_lightapp_data.power.power_state == POWER_STATE_STANDBY)
             {
@@ -2781,9 +2796,11 @@ extern void AppProcessCsrMeshEvent(csr_mesh_event_t event_code, uint8* data,
             g_lightapp_data.bearer_data.bearerEnabled     = BufReadUint16(&pData);
 
             /* BLE Advert Bearer is always enabled on this device. */
+            // BLE 广播载体在这个设备上总是被允许
             g_lightapp_data.bearer_data.bearerEnabled    |= BLE_BEARER_MASK;
 
             /* Update BLE Bearer(adverts) relay active status */
+            // 更新BLE 传播中继的活动状态
             b_enable = (g_lightapp_data.bearer_data.bearerRelayActive & \
                                                  BLE_BEARER_MASK)? TRUE : FALSE;
             CsrMeshRelayEnable(b_enable);
