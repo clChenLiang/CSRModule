@@ -140,7 +140,9 @@
  * procedure.
  */
  /*
-    
+    核心规范附录3修订版2中定义的TGAP.
+    当外设没有进一步的动作执行，且中心设备在TGAP时间内尚未初始化其它操作，则外设
+    可以执行 连接参数更新 程序。
  */
 #define TGAP_CPC_PERIOD                (1 * SECOND)
 
@@ -153,6 +155,10 @@
 /* Magic value to check the sanity of NVM region used by the application. This 
  * value should be unique for each application as the NVM layout changes for
  * every application.
+ */
+ /*
+    应用程序用来检测NVM区域的合理值。
+    此值在每个应用程序中，都是独一无二的。正如NVM布局因每个不同的应用而变动
  */
 #define NVM_SANITY_MAGIC               (0xAB81)
 
@@ -178,6 +184,10 @@
 
 /* Number of words of NVM used by application. Memory used by supported
  * services is not taken into consideration here.
+ */
+ /*
+    应用程序使用的NVM的字节数。
+    支撑服务的内存没有考虑在内。--- q_cl 此处 service 指的是什么？
  */
 #define NVM_OFFSET_ASSOCIATION_STATE   (NVM_OFFSET_CSRMESH_LIB + \
                                         CSR_MESH_NVM_SIZE)
@@ -220,6 +230,7 @@
  *  Public Data
  *============================================================================*/
 /* CSRmesh light application specific data */
+ /* CSRmesh 灯应用所用的数据 */
 CSRMESH_LIGHT_DATA_T g_lightapp_data;
 
 /* Application VID,PID and Version. */
@@ -235,6 +246,7 @@ CSR_MESH_APPEARANCE_T device_appearance = {APPEARANCE_ORG_BLUETOOTH_SIG,
                                            APPEARANCE_CSRMESH_LIGHT_VALUE};
 
 /* Device Short name */
+/* 设备的名称 */
 uint8 short_name[9] = "Light";
 
 /*============================================================================*
@@ -251,6 +263,11 @@ uint8 short_name[9] = "Light";
  * NOTE: The UUID in array below will be used only if, Bit-0 of
  * CSKEY_INDEX_USER_FLAGS is Cleared.
  */
+ /*
+    CSRmesh设备UUID：一个128比特位的设备UUID存储在8个字当中（每个字16位，128 = 16 * 8）
+    以小端的形式存储在RAM 和 NVM 中。为了得到正常的UUID，要像下面例子那样更改 light_uuid 数组
+    注：下面数组中的UUID，只会在 CSKEY_INDEX_USER_FLAGS 的 BIT-0 位被清除。
+ */
 static uint16 light_uuid[DEVICE_UUID_SIZE_WORDS] =
                                     {0x3210, 0x7654, 0xBA98, 0xFEDC,
                                      0xCDEF, 0x89AB, 0x4567, 0x0123};
@@ -264,6 +281,9 @@ static uint16 light_uuid[DEVICE_UUID_SIZE_WORDS] =
  * ..........................................MSB.............LSB.
  * Device Authorization Code in Hexadecimal: 0123-4567-89AB-CDEF.
  * Array should be set as: {0xCDEF, 0x89AB, 0x4567, 0x0123};
+ */
+ /*
+    CSRmesh设备的授权码：64比特位，4个字，小端表示法存储
  */
 static uint16 light_auth_code[DEVICE_AUTHCODE_SIZE_IN_WORDS] =
                                             {0xCDEF, 0x89AB, 0x4567, 0x0123};
@@ -392,17 +412,31 @@ static void issueOTAReset(timer_id tid)
  *      Nothing
  *
  *----------------------------------------------------------------------------*/
+ /*-----------------------------------------------------------------------------*
+  * 名称
+  * smLightDeviceIdAdvertTimeoutHandler
+ *
+  *说明
+  *此函数处理 设备ID广播 定时器事件。
+ *
+  *返回/修改
+  * 无
+ *
+ *----------------------------------------------------------------------------*/
 static void smLightDeviceIdAdvertTimeoutHandler(timer_id tid)
 {
     if(tid == g_lightapp_data.mesh_device_id_advert_tid)
     {
         if(g_lightapp_data.assoc_state == app_state_not_associated)
-        {
+        {   
+            // 灯泡未绑定
             /* Generate a random delay between 0 to 511 ms */
             uint32 random_delay = ((uint32)(Random16() & 0x1FF)) * (MILLISECOND);
 
+            // 灯泡不处于快速广播阶段
             if (g_lightapp_data.state != app_state_fast_advertising)
             {
+                // 未发送设备表征信息
                 if(send_dev_appearance == FALSE)
                 {
                 /* Send the device ID advertisements */
@@ -412,6 +446,7 @@ static void smLightDeviceIdAdvertTimeoutHandler(timer_id tid)
                 else
                 {
                 /* Send the device appearance */
+                // q_cl：发送设备表征信息，可用，发送其它信息？ 
                 CsrMeshAdvertiseDeviceAppearance(&device_appearance, 
                                                  short_name, 
                                                  sizeof(short_name));
@@ -438,7 +473,7 @@ static void smLightDeviceIdAdvertTimeoutHandler(timer_id tid)
  *
  *  DESCRIPTION
  *      This function handles NVM Write Timer time-out.
- *
+ *      该函数处理NVM写入事件定时器 （超时事件） --- 定时向 NVM 写入数据
  *  RETURNS/MODIFIES
  *      Nothing
  *
@@ -505,7 +540,9 @@ static void attnTimerHandler(timer_id tid)
  *  DESCRIPTION
  *      This function starts timer to send CSRmesh Association Messages
  *      and also gives visual indication that light is not associated.
- *
+
+ *      启动一个定时器：用来发送 设备绑定信息，并发出该 灯未被绑定的暗示信号 -- 灯光蓝色并闪烁
+
  *  RETURNS/MODIFIES
  *      Nothing
  *
@@ -515,11 +552,16 @@ static void smAppInitiateAssociation(void)
     /* Generate a random delay between 0 to 511 ms */
     uint32 random_delay = ((uint32)(Random16() & 0x1FF)) * (MILLISECOND);
 
-    /* Blink light to indicate that it is not associated 求绑定时的闪烁的颜色*/
+    /* Blink light to indicate that it is not associated 未绑定时的闪烁的颜色*/
     LightHardwareSetBlink(0, 0, 127, 32, 32);
 
     /* Start a timer to send Device ID messages periodically to get
      * associated to a network
+     */
+     /*
+        启动一个定时器，用来周期发送设备ID信息，以便跟网络绑定上
+        q_cl : device ID 怎么由设备自己确定？ a_cl : 从前面 line:426 可知，应该不
+        包含 deviceID 信息，只是自己的表征
      */
     g_lightapp_data.mesh_device_id_advert_tid =
                     TimerCreate((random_delay + DEVICE_ID_ADVERT_TIME),
@@ -601,6 +643,7 @@ static void longKeyPressTimeoutHandler(timer_id tid)
 void handlePIOEvent(pio_changed_data *data)
 {
     /* If Switch-2 related event, then process further. Otherwise ignore */
+    /*如果Switch-2相关事件，则进一步处理。 否则忽略*/
     if (data->pio_cause & SW2_MASK)
     {
         /* Button Pressed */
@@ -653,7 +696,9 @@ void handlePIOEvent(pio_changed_data *data)
  *  DESCRIPTION
  *      This function is used to send L2CAP_CONNECTION_PARAMETER_UPDATE_REQUEST
  *      to the remote device when an earlier sent request had failed.
- *
+ *      
+        该函数用来发送 L2CAP_..._REQUEST 到远程设备上，当之前的请求发送失败
+                                            q_cl : --- 指的是哪个？
  *  RETURNS
  *      Nothing.
  *
@@ -678,11 +723,13 @@ static void requestConnParamUpdate(timer_id tid)
                 /* Increment the count for Connection Parameter Update
                  * requests
                  */
+                 // 每次连接参数更新都自增一次
                 ++ g_lightapp_data.gatt_data.num_conn_update_req;
 
                 /* If it is first or second request, preferred connection
                  * parameters should be request
                  */
+                 // 前两次请求，应该请求的首选参数
                 if(g_lightapp_data.gatt_data.num_conn_update_req == 1 ||
                    g_lightapp_data.gatt_data.num_conn_update_req == 2)
                 {
@@ -698,6 +745,7 @@ static void requestConnParamUpdate(timer_id tid)
                 /* If it is 3rd or 4th request, APPLE compliant parameters
                  * should be requested.
                  */
+                 // 第三、四次请求时，应该选择与APPLE兼容性参数
                 else if(g_lightapp_data.gatt_data.num_conn_update_req == 3 ||
                         g_lightapp_data.gatt_data.num_conn_update_req == 4)
                 {
@@ -714,7 +762,7 @@ static void requestConnParamUpdate(timer_id tid)
                 /* Send Connection Parameter Update request using application
                  * specific preferred connection parameters
                  */
-
+                 // 使用应用具体的首选参数
                 if(LsConnectionParamUpdateReq(
                                  &g_lightapp_data.gatt_data.con_bd_addr,
                                  &app_pref_conn_param) != ls_err_none)
@@ -743,10 +791,13 @@ static void requestConnParamUpdate(timer_id tid)
  *      -ity is detected from the central device, a connection parameter update
  *      request is sent.
  *
+        该函数处理TGAP定时器的过期。该函数启动一个TGAP定时器，如果没有检测到主设备
+        的活动，一个 连接参数更新 请求 就会被发送出去
  *  RETURNS
  *      Nothing.
  *
  *----------------------------------------------------------------------------*/
+
 static void handleGapCppTimerExpiry(timer_id tid)
 {
     if(g_lightapp_data.gatt_data.con_param_update_tid == tid)
@@ -793,6 +844,7 @@ static void smLightDataInit(void)
     GapDataInit();
 
     /* Initialize the Mesh Control Service Data Structure */
+    // 初始化 Mesh 控制服务数据结构
     MeshControlServiceDataInit();
 
 #ifdef ENABLE_GATT_OTA_SERVICE
@@ -811,6 +863,7 @@ static void smLightDataInit(void)
  *  DESCRIPTION
  *      This function is used to initialize and read NVM data
  *
+     // 初始化并读取 NVM 数据 
  *  RETURNS/MODIFIES
  *      Nothing.
  *
@@ -1089,12 +1142,15 @@ static void readPersistentStore(void)
  *      This callback is issued when data is received over UART. Application
  *      may ignore the data, if not required. For more information refer to
  *      the API documentation for the type "uart_data_out_fn"
- *
+
+ *      当从 UART -- 通用异步传输器 中接受到数据会被调用。如果不需要，应用程序可能会忽略掉该数据。
+        更多的信息，可以从 API 文档中获取。
  *  RETURNS
  *      The number of words processed, return data_count if all of the received
  *      data had been processed (or if application don't care about the data)
  *
  *----------------------------------------------------------------------------*/
+
 #ifdef DEBUG_ENABLE
 static uint16 UartDataRxCallback ( void* p_data, uint16 data_count,
         uint16* p_num_additional_words )
@@ -1115,6 +1171,7 @@ static uint16 UartDataRxCallback ( void* p_data, uint16 data_count,
  *  DESCRIPTION
  *      This function is called while exiting app_state_fast_advertising and
  *      app_state_slow_advertising states.
+        当退出快速与慢速广播状态
  *
  *  RETURNS
  *      Nothing.
@@ -1133,6 +1190,7 @@ static void appAdvertisingExit(void)
  *
  *  DESCRIPTION
  *      This function handles the signal GATT_ADD_DB_CFM
+        该函数用于处理 GATT_ADD_DB_CFM 信号 
  *
  *  RETURNS
  *      Nothing.
@@ -1170,6 +1228,7 @@ static void handleSignalGattAddDBCfm(GATT_ADD_DB_CFM_T *p_event_data)
  *
  *  DESCRIPTION
  *      This function handles the signal GATT_CANCEL_CONNECT_CFM
+        该函数处理GATT_CANCEL_CONNECT_CFM信号
  *
  *  RETURNS
  *      Nothing.
@@ -1262,6 +1321,7 @@ static void handleSignalGattConnectCfm(GATT_CONNECT_CFM_T* p_event_data)
                 AppSetState(app_state_connected);
 
                 /* Inform CSRmesh that we are connected now */
+                // 通知 CSRmesh ，我们正在尝试连接
                 CsrMeshHandleDataInConnection(
                                 g_lightapp_data.gatt_data.st_ucid,
                                 g_lightapp_data.gatt_data.conn_interval);
@@ -1276,6 +1336,9 @@ static void handleSignalGattConnectCfm(GATT_CONNECT_CFM_T* p_event_data)
                  * of that timer, send a connection parameter update request
                  * to remote side.
                  */
+                 // 由于CSRmesh应用程序不要求对其属性进行加密，远程主设备可能加密也可能不加密链接。
+                 // 这里启动一个定时器，用来给远程主设备一些时间去加密链接，当定时器时间到了，则会
+                 // 发送给远程设备一个连接参数更新请求
 
                 /* Don't request security as this causes connection issues
                  * with Android 4.4
@@ -1288,6 +1351,8 @@ static void handleSignalGattConnectCfm(GATT_CONNECT_CFM_T* p_event_data)
                  * parameters and the timer is not running and, start timer
                  * to trigger Connection Parameter Update procedure
                  */
+                 // 当当前的连接参数不被应用的首选参数所所用，且定时器没有启动
+                 // 开始定时器将会触发连接参数更新程序
                 if((g_lightapp_data.gatt_data.con_param_update_tid ==
                                                         TIMER_INVALID) &&
                    (g_lightapp_data.gatt_data.conn_interval <
@@ -1302,6 +1367,7 @@ static void handleSignalGattConnectCfm(GATT_CONNECT_CFM_T* p_event_data)
                   )
                 {
                     /* Set the num of conn update attempts to zero */
+                    // 将更新尝试次数设置为 0 
                     g_lightapp_data.gatt_data.num_conn_update_req = 0;
 
                     /* The application first starts a timer of
@@ -1319,6 +1385,13 @@ static void handleSignalGattConnectCfm(GATT_CONNECT_CFM_T* p_event_data)
                      * is complete and it initiates the connection parameter
                      * update procedure.
                      */
+                     // 应用首先启动 TGAP_CPP_PERIOD 定时器。
+                     // 该定时期间，应用等待配对设备执行数据库发现程序。
+                    // 该定时器结束的时候，应用开启一个或者更多的 TGAP_CPC_PERIOD 周期。
+                    // 如果在此期间，应用接受到任何 GATT_ACCESS_IND 信号，则假定配对设备
+                    // 仍在执行数据库发现程序，或者其它配置，应用不应该进行连接参数更新。
+                    // 因此，应用重新启动 TGAP_CPC_PERIOD 定时器。
+                    // 当这个定时器过期，应用认为数据库发现过程执行完成，并初始化连接参数更新。
                     g_lightapp_data.gatt_data.con_param_update_tid =
                                       TimerCreate(TGAP_CPP_PERIOD, TRUE,
                                                   handleGapCppTimerExpiry);
@@ -1411,6 +1484,7 @@ static void handleSignalLsConnParamUpdateCfm(
               * request only after Tgap(conn_param_timeout). Refer
               * Bluetooth 4.0 spec Vol 3 Part C, Section 9.3.9 and profile spec.
               */
+              // 从设备允许加密后，发送请求。如果请求失败，设备在 Tgap 时间到后，再次发送。
             if ((p_event_data->status != ls_err_none) &&
                 (g_lightapp_data.gatt_data.num_conn_update_req <
                                         MAX_NUM_CONN_PARAM_UPDATE_REQS))
@@ -1569,6 +1643,7 @@ static void handleSignalGattAccessInd(GATT_ACCESS_IND_T *p_event_data)
              * -vering services. So, restart the connection parameter update
              * timer
              */
+             // GATT_ACCESS_IND 表明中心设备仍然在发现服务。所以重启连接参数更新定时器
              if(g_lightapp_data.gatt_data.cpu_timer_value == TGAP_CPC_PERIOD &&
                 g_lightapp_data.gatt_data.con_param_update_tid != TIMER_INVALID)
              {
@@ -1585,6 +1660,9 @@ static void handleSignalGattAccessInd(GATT_ACCESS_IND_T *p_event_data)
                  * firmware is asking the app for permission to go along with
                  * prepare write request from the peer. Allow it.
                  */
+                 // 如果只有 ATT_ACCESS_PERMISSION 标志使能，则固件会请求程序允许准备
+                 // 来自对等体的写请求。
+
                 if(((p_event_data->flags) &
                    (ATT_ACCESS_PERMISSION | ATT_ACCESS_WRITE_COMPLETE))
                                                     == ATT_ACCESS_PERMISSION)
@@ -1633,6 +1711,8 @@ static void handleSignalGattAccessInd(GATT_ACCESS_IND_T *p_event_data)
  *      This function handles LM Disconnect Complete event which is received
  *      at the completion of disconnect procedure triggered either by the
  *      device or remote host or because of link loss
+        //该函数处理 LM 丢失完成事件，当接受到断开连接程序完成信号。无论该断开连接程序
+        //是由设备自己还是远程主机亦或信仅只是连接丢失触发的
  *
  *  RETURNS
  *      Nothing.
@@ -1661,7 +1741,7 @@ static void handleSignalLmDisconnectComplete(
      * HCI_ERROR_CONN_TERM_LOCAL_HOST - Disconnect triggered by device
      * HCI_ERROR_OETC_* - Other end (i.e., remote host) terminated connection
      */
-
+     // 断开连接的三种可能
     /*Handling signal as per current state */
     switch(g_lightapp_data.state)
     {
@@ -1672,6 +1752,7 @@ static void handleSignalLmDisconnectComplete(
              * the local host terminated connection. In either case
              * initialize the app data and go to fast advertising.
              */
+             // 非本设备的原因断开连接，重启程序数据
             smLightDataInit();
             AppSetState(app_state_fast_advertising);
         }
@@ -1691,6 +1772,8 @@ static void handleSignalLmDisconnectComplete(
  *  DESCRIPTION
  *      This function handles the CSRmesh Group Assignment message. Stores
  *      the group_id at the given index for the model
+        // 该函数处理 CSRmesh 分组 信号。在模型指定的索引处储存 group_id 
+        // q_cl: 一次只能发送一个模型，更改一个模型的分组。是吗，与具体的信号是怎么产生的
  *
  *  RETURNS
  *      Nothing.
@@ -1773,6 +1856,7 @@ static bool handleCsrMeshGroupSetMsg(uint8 *msg, uint16 len)
  *
  *  DESCRIPTION
  *      This function handles the CSRmesh back-off events.
+        // 处理回退事件
  *
  *  RETURNS
  *      Nothing.
@@ -1843,6 +1927,7 @@ static void backoffEventHandler(CSR_MESH_BACKOFF_EVENT_DATA_T *pEventData)
  *  DESCRIPTION
  *      This function writes the application data to NVM. This function should
  *      be called on getting nvm_status_needs_erase
+        // 该函数将应用数据写入NVM 中。当得到 nvm_status_needs_erase 信号时调用 
  *
  *  RETURNS
  *      Nothing.
@@ -1882,6 +1967,7 @@ extern void AppSetState(app_state new_state)
     /* Check if the new state to be set is not the same as the present state
      * of the application.
      */
+     // 原来更改模块状态的函数是自己实现的，而不是自带的
     app_state old_state = g_lightapp_data.state;
 
     if (old_state != new_state)
@@ -1900,6 +1986,7 @@ extern void AppSetState(app_state new_state)
                 /* Initialise CSRmesh light data and services
                  * data structure while exiting Disconnecting state.
                  */
+
                 smLightDataInit();
             break;
 
@@ -2032,6 +2119,7 @@ void AppPowerOnReset(void)
  *      NOTE: In the case of a power-on reset, this function is called
  *      after app_power_on_reset().
  *
+
  *  RETURNS
  *      Nothing.
  *
@@ -2096,11 +2184,13 @@ void AppInit(sleep_state last_sleep_state)
     /* Read persistent storage.
      * Call this before CsrMeshInit.
      */
+     // q_cl:读到哪里去了？ -- 这个函数比较长，需要重新读一次
     readPersistentStore();
 
     /* Set the CsrMesh NVM start offset.
      * Note: This function must be called before the CsrMeshInit()
      */
+     // q_cl: 这个 offset 能更改吗，还是固定的？
     CsrMeshNvmSetStartOffset(NVM_OFFSET_CSRMESH_LIB);
 
     /* Initialise the CSRmesh */
@@ -2164,6 +2254,7 @@ void AppInit(sleep_state last_sleep_state)
     g_lightapp_data.state = app_state_init;
 
     /* Initialize Light Hardware */
+    // 重点来了，灯光硬件初始化 -- 为自带函数？
     LightHardwareInit();
 
 #ifdef USE_ASSOCIATION_REMOVAL_KEY
@@ -2173,6 +2264,8 @@ void AppInit(sleep_state last_sleep_state)
     /* Start a timer which does device ID adverts till the time device
      * is associated
      */
+     // 启动deviceID广播，只要设备被绑定了
+     // 下面这个判断逻辑有点搞，容易迷惑。两个同为真的含义不同
     if(app_state_not_associated == g_lightapp_data.assoc_state)
     {
         smAppInitiateAssociation();
@@ -2200,6 +2293,7 @@ void AppInit(sleep_state last_sleep_state)
     /* Tell GATT about our database. We will get a GATT_ADD_DB_CFM event when
      * this has completed.
      */
+     // 告诉GATT关于模块的数据库，完成后，会得到 GATT_ADD_DB_CFM 事件
     p_gatt_db_pointer = GattGetDatabase(&gatt_db_length);
     GattAddDatabaseReq(gatt_db_length, p_gatt_db_pointer);
 
