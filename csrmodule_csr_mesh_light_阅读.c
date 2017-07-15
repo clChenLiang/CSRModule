@@ -2118,8 +2118,8 @@ void AppPowerOnReset(void)
  *
  *      NOTE: In the case of a power-on reset, this function is called
  *      after app_power_on_reset().
+        // 该应用程序在电源重启后被调用。重启的来源：休眠后的唤醒、隐匿状态、或者HCI重置
  *
-
  *  RETURNS
  *      Nothing.
  *
